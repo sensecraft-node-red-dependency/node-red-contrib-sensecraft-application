@@ -1,8 +1,4 @@
 # node-red-contrib-sensecraft-application
-
-# Start Generation Here
-## Overview
-
 This project is a Node-RED contribution for the Sensecraft application, allowing users to integrate Sensecraft functionalities into their Node-RED flows.
 
 ## Installation
