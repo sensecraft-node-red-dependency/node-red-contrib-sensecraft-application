@@ -1,0 +1,36 @@
+{
+  "name": "node-red-contrib-sensecraft-application",
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sensecraft-node-red-dependency/node-red-contrib-sensecraft-application.git"
+  },
+  "node-red": {
+    "nodes": {
+      "sensecraft-application": "sensecraft-application.js"
+    }
+  },
+  "scripts": {
+    "start": "build "
+  },
+  "dependencies": {
+    "axios": "0.19.2",
+    "body-parser": "^1.0.0",
+    "eol": "^0.9.1",
+    "fs-extra": "^9.0.1",
+    "js-yaml": "^3.14.0",
+    "jsonata": "*",
+    "log4js": "~1.0.1"
+  },
+  "keywords": [
+    "sensecraft",
+    "seeed",
+    "node-red",
+    "node",
+    "red",
+    "flow",
+    "manager"
+  ],
+  "author": "sensecraft",
+  "license": "MIT"
+}
