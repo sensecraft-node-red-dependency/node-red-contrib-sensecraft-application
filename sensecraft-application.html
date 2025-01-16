@@ -56,13 +56,17 @@
             )
         }
 
+        let baseUrl = window.location.host
+        if (baseUrl.indexOf(':') != -1) baseUrl = baseUrl.slice(0, baseUrl.indexOf(':'))
+        baseUrl = 'http://' + baseUrl + ':8090'
+
         const apiUrl = {
             getDeviceInfo: {
-                url: 'http://127.0.0.1:8090/device/info',
+                url: baseUrl + '/device/info',
                 method: 'GET'
             },
             restart: {
-                url: 'http://127.0.0.1:8090/container/restart/',
+                url: baseUrl + '/container/restart/',
                 method: 'POST'
             },
             getLocalState: {
@@ -88,7 +92,7 @@
         }
 
         RED.comms.subscribe('sensecraft-application/sensecraft-application-envnodes-npm-update', function (topic, msgData) {
-            console.log(topic, msgData)
+            // console.log(topic, msgData)
             if (msgData && msgData.npm_update) {
                 // RED.view.redraw();
                 try {
@@ -160,7 +164,7 @@
                     contentType: "application/json; charset=utf-8"
                 });
                 targetJson = data;
-                console.log(data, 'target json')
+                // console.log(data, 'target json')
             } catch (error) {
                 alert(`Failed to get the target file (Application Id: ${queryObj.appId}), Discontinuing.`);
                 console.log(error)
