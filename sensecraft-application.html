@@ -56,9 +56,22 @@
             )
         }
 
+        async function urlToFile(url, filename, mimeType) {
+            let fileName1 = url.split('/')
+            fileName1 = fileName1[fileName1.length - 1]
+            // Fetch the file data from the URL
+            const response = await fetch(url);
+            // Convert response to Blob
+            const blob = await response.blob();
+            // Create a File object
+            return new File([blob], filename || fileName1, { type: mimeType || blob.type });
+        }
+
         let baseUrl = window.location.host
         if (baseUrl.indexOf(':') != -1) baseUrl = baseUrl.slice(0, baseUrl.indexOf(':'))
         baseUrl = 'http://' + baseUrl + ':8090'
+        // baseUrl = 'http://192.168.118.71:8090'
+        // console.log(baseUrl, 'baseUrl')
 
         const apiUrl = {
             getDeviceInfo: {
@@ -67,6 +80,10 @@
             },
             restart: {
                 url: baseUrl + '/container/restart/',
+                method: 'POST'
+            },
+            uploadFile: {
+                url: baseUrl + '/sensecraft-application/flow-static/', // :appId
                 method: 'POST'
             },
             getLocalState: {
@@ -104,22 +121,41 @@
 
                     const myNotification = RED.notify(
                         `The plugin has been updated and will be restarted for you soon`, {
-                            type: "success",
-                            timeout: 30000,
-                            buttons: [
-                                {
-                                    text: "Thanks",
-                                    click: function (e) {
-                                        myNotification.close();
-                                    }
+                        type: "success",
+                        timeout: 30000,
+                        buttons: [
+                            {
+                                text: "Thanks",
+                                click: function (e) {
+                                    myNotification.close();
                                 }
-                            ]
-                        });
+                            }
+                        ]
+                    });
                 } catch (error) {
                     console.log('Failed to restart:' + JSON.stringify(error))
                 }
             }
         });
+
+
+        async function uploadFn(arr, appId) {
+            for (let i = 0; i < arr.length; i++) {
+                try {
+                    const formData = new FormData();
+                    const file = await urlToFile(arr[i]);
+                    formData.append('file', file)
+                    await ajax({
+                        url: apiUrl.uploadFile.url + `${appId}`,
+                        method: apiUrl.uploadFile.method,
+                        data: formData, processData: false,  // 必须为 false
+                        contentType: false,  // 必须为 false
+                    });
+                } catch (error) {
+                    console.log(arr[i] + ' upload failed')
+                }
+            }
+        }
 
         async function getdeviceInfo() {
             try {
@@ -153,6 +189,8 @@
         const queryObj = await paramObj(window.location.href)
 
         let targetJson = null;
+        let staticInfo = null;
+        let remoteState = null;
         if (queryObj && queryObj.appId) {
             // get the target file
             try {
@@ -164,7 +202,12 @@
                     contentType: "application/json; charset=utf-8"
                 });
                 targetJson = data;
-                // console.log(data, 'target json')
+                for (let i = 0; i < targetJson.length; i++) {
+                    if (targetJson[i].type === "comment" && targetJson[i].name === "sensecraft-libs") {
+                        // 找到静态文件
+                        staticInfo = targetJson[i].info ? JSON.parse(targetJson[i].info) : null
+                    }
+                }
             } catch (error) {
                 alert(`Failed to get the target file (Application Id: ${queryObj.appId}), Discontinuing.`);
                 console.log(error)
@@ -172,6 +215,27 @@
         }
 
         if (!targetJson) return false;
+
+        try {
+            remoteState = await ajax({
+                url: apiUrl.getRemoteState.url + `${queryObj.appId}`,
+                method: apiUrl.getRemoteState.method,
+                data: JSON.stringify(targetJson),
+                contentType: 'application/json',
+            });
+
+            for (const key in remoteState) {
+                if (remoteState[key] && JSON.stringify(remoteState[key]) === '{}') {
+                    delete remoteState[key]
+                }
+            }
+            if (remoteState && JSON.stringify(remoteState) === '{}') remoteState = null;
+        } catch (error) {
+            alert(`Failed to retrieve flow state from ${queryObj.appId}`);
+            console.log(error)
+        }
+
+        if (!remoteState) return false;
 
         // Push progress dialog
         $('body').prepend(`
@@ -224,8 +288,15 @@
         });
 
         $('#mission-manager-remote-diff-push-button').click(async function () {
-            $("#mission-manager-push-progress-dialog").dialog({title: 'Push in progress...', modal: true});
+            $("#mission-manager-push-progress-dialog").dialog({ title: 'Push in progress...', modal: true });
 
+            // upload static
+            if (staticInfo && staticInfo.static) {
+                $('#mission-manager-push-progress-label').text(`Uploading Static Files ...`);
+                await uploadFn(staticInfo.static, queryObj.appId)
+            }
+
+            $('#mission-manager-push-progress-label').text(`Applying ...`);
             const inputs = $('#mission-manager-remote-diff-dialog input');
             let progress = 0;
             for (const input of inputs) {
@@ -255,7 +326,7 @@
                     alert(`Failed to ${action} file ${flowType} ${flowName || ''}, Discontinuing.`);
                     break;
                 }
-                $("#mission-manager-push-progress-progressbar").progressbar({value: (progress / (inputs.length + 1)) * 100});
+                $("#mission-manager-push-progress-progressbar").progressbar({ value: (progress / (inputs.length + 1)) * 100 });
             }
 
             $('#mission-manager-push-progress-label').text(`Deploying ...`);
@@ -263,7 +334,7 @@
                 await ajax({
                     url: apiUrl.reloadState.url,
                     method: 'POST',
-                    data: JSON.stringify({"action": "reloadOnly"}),
+                    data: JSON.stringify({ "action": "reloadOnly" }),
                     dataType: "json",
                     contentType: "application/json; charset=utf-8"
                 });
@@ -271,7 +342,7 @@
                 console.log('Failed to reload state:' + JSON.stringify(error))
             }
 
-            $("#mission-manager-push-progress-progressbar").progressbar({value: 100});
+            $("#mission-manager-push-progress-progressbar").progressbar({ value: 100 });
 
             $("#mission-manager-push-progress-dialog").dialog('close');
             $("#mission-manager-remote-diff-dialog").dialog('close');
@@ -354,31 +425,24 @@
             if (!foundDifferencesInAnyType) $("#mission-manager-remote-diff-dialog").dialog('close');
         }
 
-
         const progressDialog = $("#mission-manager-push-progress-dialog");
         const progressLabel = $('#mission-manager-push-progress-label');
         const progressBar = $('#mission-manager-push-progress-progressbar');
 
-        progressDialog.dialog({title: 'Loading & Comparing states', modal: true});
+        progressDialog.dialog({ title: 'Loading & Comparing states', modal: true });
         progressLabel.text('');
-        progressBar.progressbar({value: 0});
+        progressBar.progressbar({ value: 0 });
 
         try {
             progressLabel.text('Retrieving Local State');
-            const localState = await ajax({url: apiUrl.getLocalState.url});
-            progressBar.progressbar({value: 50});
+            const localState = await ajax({ url: apiUrl.getLocalState.url });
+            progressBar.progressbar({ value: 50 });
 
             progressLabel.text('Applying...');
             try {
-                const remoteState = await ajax({
-                    url: apiUrl.getRemoteState.url + `${queryObj.appId}`,
-                    method: apiUrl.getRemoteState.method,
-                    data: JSON.stringify(targetJson),
-                    contentType: 'application/json',
-                });
                 $('#mission-manager-remote-dialog').dialog('close');
 
-                progressBar.progressbar({value: 100});
+                progressBar.progressbar({ value: 100 });
 
                 prepareDiffTable({
                     localState,
