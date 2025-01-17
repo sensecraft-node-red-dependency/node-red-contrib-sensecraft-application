@@ -110,7 +110,7 @@
 
         RED.comms.subscribe('sensecraft-application/sensecraft-application-envnodes-npm-update', function (topic, msgData) {
             // console.log(topic, msgData)
-            if (msgData && msgData.npm_update) {
+            if (topic) {
                 // RED.view.redraw();
                 try {
                     ajax({
