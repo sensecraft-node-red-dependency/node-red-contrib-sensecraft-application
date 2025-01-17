@@ -139,12 +139,13 @@
         });
 
 
-        async function uploadFn(arr, appId) {
+        async function uploadFn(arr, appId, author) {
             for (let i = 0; i < arr.length; i++) {
                 try {
                     const formData = new FormData();
                     const file = await urlToFile(arr[i]);
                     formData.append('file', file)
+                    if (author) formData.append('author', author)
                     await ajax({
                         url: apiUrl.uploadFile.url + `${appId}`,
                         method: apiUrl.uploadFile.method,
@@ -293,7 +294,7 @@
             // upload static
             if (staticInfo && staticInfo.static) {
                 $('#mission-manager-push-progress-label').text(`Uploading Static Files ...`);
-                await uploadFn(staticInfo.static, queryObj.appId)
+                await uploadFn(staticInfo.static, queryObj.appId, staticInfo.author)
             }
 
             $('#mission-manager-push-progress-label').text(`Applying ...`);
